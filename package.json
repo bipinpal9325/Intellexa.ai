@@ -1,0 +1,19 @@
+{
+  "name": "intellexa.ai",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "npm run dev "
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bipinpal9325/IntellexaAI.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/bipinpal9325/IntellexaAI/issues"
+  },
+  "homepage": "https://github.com/bipinpal9325/IntellexaAI#readme"
+}
