@@ -1,8 +1,9 @@
 import express from "express";
-import { generateBlogTitle } from "../controllers/aiController.js";
+import { generateArticle } from "../controllers/aiController.js";
+import auth from "../middlewares/auth.js";
 
-const router = express.Router();
+const aiRouter = express.Router();
 
-router.post("/blog-titles", generateBlogTitle);
+aiRouter.post('/generate-article',auth,generateArticle);
 
-export default router;
+export default aiRouter;
