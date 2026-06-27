@@ -1,6 +1,5 @@
 import { clerkClient } from "@clerk/express";
 
-// Middleware to check userId and premium plan
 const auth = async (req, res, next) => {
   try {
     const { userId, has } = await req.auth();
@@ -27,6 +26,8 @@ const auth = async (req, res, next) => {
     }
 
     req.plan = hasPremiumPlan ? "premium" : "free";
+    req.userId = userId;
+
     next();
   } catch (error) {
     res.status(401).json({

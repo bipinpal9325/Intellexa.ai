@@ -66,8 +66,9 @@ const Testimonial = () => {
             }
         `}</style>
 
+            {/* FIX: added "z-0" to prevent overflow-hidden from creating a stacking context above the Navbar's z-5 */}
             {[ 'normal', 'reverse' ].map((dir, i) => (
-                <div key={i} className="marquee-row w-full mx-auto max-w-5xl overflow-hidden relative">
+                <div key={i} className="marquee-row w-full mx-auto max-w-5xl overflow-hidden relative z-0">
                     <div className="absolute left-0 top-0 h-full w-20 z-10 pointer-events-none bg-gradient-to-r from-white to-transparent"></div>
                     <div className={`marquee-inner ${dir === 'reverse' ? 'marquee-reverse' : ''} flex transform-gpu min-w-[200%] pt-5 pb-5`}>
                         {[...cardsData, ...cardsData].map((card, index) => (
