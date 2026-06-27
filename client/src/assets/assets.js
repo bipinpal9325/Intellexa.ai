@@ -1,6 +1,4 @@
-import logo from "./logo.svg";
-import logo2 from "./logo2.svg";
-import logo1 from "./logo1.png";
+import logo1 from "./logo1.svg";
 import gradientBackground from "./gradientBackground.png";
 import gradientBackgroundd from "./gradientBackgroundd.jpg";
 import gradientBackgrounddd from "./gradientBackgrounddd.jpg";
@@ -15,9 +13,7 @@ import ai_gen_img_2 from "./ai_gen_img_2.png";
 import ai_gen_img_3 from "./ai_gen_img_3.png";
 
 export const assets = {
-    logo,
     logo1,
-    logo2,
     gradientBackground,
     gradientBackgroundd,
     gradientBackgrounddd,
