@@ -12,8 +12,7 @@ const Navbar = () => {
 
 
   return (
-    // FIX: changed z-5 to z-50 so navbar always renders above marquee rows and their z-10 gradient overlays
-    <div className='fixed z-50 w-full backdrop-blur-2xl flex justify-between items-center py-3 
+    <div className=' fixed z-5 w-full backdrop-blur-2xl flex justify-between items-center py-3 
     px-4 sm:px-20 xl:px-32'>
         <img src={assets.logo2} alt="logo2" className='w-32 sm:w-44 cursor-pointer' onClick={()=>
         navigate('/')}/>
@@ -29,6 +28,8 @@ const Navbar = () => {
 
         }
 
+       
+      
     </div>
   )
 }
