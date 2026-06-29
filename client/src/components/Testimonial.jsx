@@ -9,8 +9,8 @@ const Testimonial = () => {
         },
         {
             image: 'https://images.unsplash.com/photo-1527980965255-d3b416303d12?w=200&auto=format&fit=crop&q=60',
-            name: 'Priya Desai',
-            handle: '@priyadesigns',
+            name: 'Dhruv Tiwari',
+            handle: '@dhruvtiwari',
             location: 'Mumbai, India',
             comment: 'The seamless experience with Radiant transformed our workflow efficiency.',
         },
@@ -23,9 +23,9 @@ const Testimonial = () => {
         },
         {
             image: 'https://images.unsplash.com/photo-1633332755192-727a05c4013d?q=80&w=200',
-            name: 'Neha Patel',
-            handle: '@nehacreates',
-            location: 'Ahmedabad, India',
+            name: 'Bipin Pal',
+            handle: '@bipinpal9325',
+            location: 'Mumbai, India',
             comment: 'Exceptional service and support, Radiant is a must-have tool.',
         },
     ];
