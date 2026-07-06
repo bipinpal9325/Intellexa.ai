@@ -14,7 +14,7 @@ const Home = () => {
     <Navbar />
     <Hero />
     <AiTools/>
-    <Testimonial/>rr
+    <Testimonial/>
     <Plan/>
     <Footer/>
     
