@@ -10,7 +10,7 @@ const Footer = () => {
                         
                        <a href="/">
                          <img
-                            src={assets.logo2}
+                            src={assets.logo1}
                             alt="Intellexa.ai Logo"
                             width={50}
                             height={5}
