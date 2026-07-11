@@ -6,19 +6,15 @@ import Testimonial from '../components/Testimonial'
 import Plan from '../components/Plan'
 import Footer from '../components/Footer'
 
-
-
 const Home = () => {
   return (
     <>
-    <Navbar />
-    <Hero />
-    <AiTools/>
-    <Testimonial/>
-    <Plan/>
-    <Footer/>
-    
-   
+      <Navbar />
+      <Hero />
+      <AiTools />
+      <Testimonial />
+      <Plan />
+      <Footer />
     </>
   )
 }

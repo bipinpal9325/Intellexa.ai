@@ -1,11 +1,46 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap');
 @import "tailwindcss";
 
-*{
-  font-family : "Outfit" , sans-serif;
+* {
+  font-family: "Plus Jakarta Sans", sans-serif;
 }
 
-@theme{
-  --color-primary: #5044E5;
+@theme {
+  /* Core surfaces */
+  --color-ink: #0B0E1A;
+  --color-ink-soft: #151833;
+  --color-paper: #FAFAFC;
 
+  /* Brand */
+  --color-primary: #5B4FE9;
+  --color-primary-dim: #4338CA;
+  --color-primary-light: #EEECFD;
+  --color-accent: #E8C888;
+
+  /* Neutral text */
+  --color-slate-soft: #6B7280;
+
+  /* Type roles */
+  --font-display: "Fraunces", serif;
+  --font-body: "Plus Jakarta Sans", sans-serif;
+  --font-mono: "IBM Plex Mono", monospace;
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+.font-mono-label {
+  font-family: var(--font-mono);
+  letter-spacing: 0.14em;
+}
+
+/* Respect reduced motion globally */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
