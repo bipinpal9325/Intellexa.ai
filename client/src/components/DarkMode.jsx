@@ -5,37 +5,38 @@ const DarkMode = () => {
 
   const handleCheckboxChange = () => {
     setIsChecked(!isChecked);
-    // Optional: Toggle dark mode class on <html>
     document.documentElement.classList.toggle('dark', !isChecked);
   };
 
   return (
     <div className="absolute top-4 right-4">
-      <label className="themeSwitcherThree relative inline-flex cursor-pointer select-none items-center">
+      <label className="relative inline-flex cursor-pointer select-none items-center">
         <input
           type="checkbox"
           checked={isChecked}
           onChange={handleCheckboxChange}
-          className="sr-only"
+          className="sr-only peer"
         />
-        <span className="mr-[18px] text-sm font-medium text-black dark:text-white">
+        <span className="mr-[18px] text-sm font-medium text-[#F1F0FA]">
           Switch Version
         </span>
-        <div className="shadow-card flex h-[46px] w-[82px] items-center justify-center rounded-md bg-white dark:bg-gray-800">
+        <div
+          className="flex h-[46px] w-[82px] items-center justify-center rounded-full
+          bg-[#15151f] border border-white/10
+          peer-focus-visible:ring-2 peer-focus-visible:ring-[#6C5CE7]/60"
+        >
           <span
-            className={`flex h-9 w-9 items-center justify-center rounded ${
-              !isChecked ? 'bg-primary text-white' : 'text-body-color'
-            }`}
+            aria-hidden="true"
+            className={`flex h-9 w-9 items-center justify-center rounded-full transition-colors duration-200
+              ${!isChecked ? 'bg-[#6C5CE7] text-white' : 'text-slate-500'}`}
           >
-            {/* Sun Icon */}
             ☀️
           </span>
           <span
-            className={`flex h-9 w-9 items-center justify-center rounded ${
-              isChecked ? 'bg-primary text-white' : 'text-body-color'
-            }`}
+            aria-hidden="true"
+            className={`flex h-9 w-9 items-center justify-center rounded-full transition-colors duration-200
+              ${isChecked ? 'bg-[#6C5CE7] text-white' : 'text-slate-500'}`}
           >
-            {/* Moon Icon */}
             🌙
           </span>
         </div>

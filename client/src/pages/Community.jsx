@@ -1,13 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { dummyPublishedCreationData } from "../assets/assets";
 import { Heart } from "lucide-react";
-import { useUser } from "@clerk/clerk-react"; // Make sure Clerk is installed
+import { useUser } from "@clerk/clerk-react";
 
 const Community = () => {
   const [creations, setCreations] = useState([]);
-  const { user } = useUser(); // Gets the logged-in user
+  const { user } = useUser();
 
-  // Simulated fetch
   const fetchCreations = async () => {
     setCreations(dummyPublishedCreationData);
   };
@@ -36,44 +35,55 @@ const Community = () => {
   };
 
   return (
-    <div className="flex-1 h-full flex flex-col gap-4 p-6">
-      <h1 className="text-xl font-semibold text-gray-800">Community Creations</h1>
+    <div className="relative flex-1 h-full flex flex-col gap-4 p-6 bg-[#0a0a12] overflow-hidden">
+      <div
+        className="pointer-events-none absolute top-0 left-1/2 -translate-x-1/2 w-[550px] h-[550px] rounded-full opacity-[0.15] blur-[130px]"
+        style={{ background: 'radial-gradient(circle, #6C5CE7 0%, transparent 70%)' }}
+        aria-hidden="true"
+      />
 
-      <div className="bg-white h-full w-full rounded-xl p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 overflow-y-auto">
+      <h1 className="relative font-display text-xl font-medium text-white">
+        Community <span className="italic text-[#9F91F0]">Creations</span>
+      </h1>
+
+      <div className="relative bg-white/[0.03] border border-white/10 backdrop-blur-sm h-full w-full
+      rounded-2xl p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 overflow-y-auto">
         {creations.length > 0 ? (
           creations.map((creation, index) => (
             <div
               key={index}
-              className="relative group bg-gray-100 rounded-lg overflow-hidden shadow hover:shadow-lg transition-all"
+              className="relative group bg-[#0f0f1a] border border-white/10 rounded-xl overflow-hidden
+              hover:border-[#6C5CE7]/50 transition-colors duration-200"
             >
               {/* Image */}
               <img
                 src={creation.content}
                 alt={creation.prompt}
-                className="w-full h-64 object-cover rounded-t-lg"
+                className="w-full h-64 object-cover"
               />
 
               {/* Prompt on hover */}
-              <p className="absolute inset-x-0 bottom-0 bg-black/60 text-white text-sm p-2 opacity-0 group-hover:opacity-100 transition-opacity">
+              <p className="absolute inset-x-0 bottom-0 bg-[#0a0a12]/85 text-slate-200 text-sm p-2
+              opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                 {creation.prompt}
               </p>
 
               {/* Like Section */}
-              <div className="flex justify-between items-center px-4 py-3 bg-white rounded-b-lg">
-                <p className="text-sm text-gray-600">{creation.likes.length} Likes</p>
+              <div className="flex justify-between items-center px-4 py-3 bg-[#0f0f1a] border-t border-white/10">
+                <p className="text-sm text-slate-400">{creation.likes.length} Likes</p>
                 <Heart
                   onClick={() => toggleLike(index)}
-                  className={`w-5 h-5 cursor-pointer transition-transform hover:scale-110 ${
+                  className={`w-5 h-5 cursor-pointer transition-transform duration-200 hover:scale-110 ${
                     creation.likes.includes(user?.id)
-                      ? "fill-red-500 text-red-500"
-                      : "text-gray-400"
+                      ? "fill-red-400 text-red-400"
+                      : "text-slate-500"
                   }`}
                 />
               </div>
             </div>
           ))
         ) : (
-          <p className="text-gray-500 text-center col-span-full">
+          <p className="text-slate-500 text-center col-span-full">
             No creations yet. Start sharing your work!
           </p>
         )}

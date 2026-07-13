@@ -20,20 +20,27 @@ const Sidebar = ({ sidebar, setSidebar }) => {
 
   return (
     <div
-      className={`w-60 bg-white border-r border-gray-200 flex flex-col justify-between
-      items-center max-sm:absolute top-14 bottom-0
+      className={`relative w-60 bg-[#0f0f1a] border-r border-white/10 flex flex-col justify-between
+      items-center max-sm:absolute max-sm:top-14 max-sm:bottom-0 z-10 overflow-hidden
       ${sidebar ? 'translate-x-0' : 'max-sm:-translate-x-full'}
-      transition-all duration-300 ease-in-out`}
+      transition-transform duration-300 ease-in-out`}
     >
-      <div className="my-7 w-full">
+      {/* Faint ambient glow, kept subtle since this is a dense/utility panel */}
+      <div
+        className="pointer-events-none absolute -top-16 -left-16 w-64 h-64 rounded-full opacity-[0.12] blur-[100px]"
+        style={{ background: 'radial-gradient(circle, #6C5CE7 0%, transparent 70%)' }}
+        aria-hidden="true"
+      />
+
+      <div className="relative my-7 w-full">
         <img
           src={user?.imageUrl}
           alt="User avatar"
-          className="w-14 rounded-full mx-auto"
+          className="w-14 h-14 rounded-full mx-auto object-cover border-2 border-[#0f0f1a]"
         />
-        <h1 className="mt-1 text-center">{user?.fullName || 'User'}</h1>
+        <h1 className="mt-1 text-center text-[#F1F0FA] font-medium">{user?.fullName || 'User'}</h1>
 
-        <div className='px-6 mt-5 text-sm text-gray-600 font-medium'>
+        <div className="px-6 mt-5 text-sm text-slate-400 font-medium">
           {navItems.map(({ to, label, Icon }) => (
             <NavLink
               key={to}
@@ -41,13 +48,16 @@ const Sidebar = ({ sidebar, setSidebar }) => {
               end={to === '/ai'}
               onClick={() => setSidebar(false)}
               className={({ isActive }) =>
-                `px-3.5 py-2.5 flex items-center gap-3 rounded 
-                ${isActive ? 'bg-gradient-to-r from-[#3C81F6] to-[#9234EA] text-white' : ''}`
+                `px-3.5 py-2.5 flex items-center gap-3 rounded-lg transition-colors duration-200
+                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6C5CE7]/60
+                ${isActive
+                  ? 'bg-[#6C5CE7] text-white'
+                  : 'hover:bg-white/[0.05] hover:text-[#F1F0FA]'}`
               }
             >
               {({ isActive }) => (
                 <>
-                  <Icon className={`w-4 h-4 ${isActive ? 'text-white' : ''}`} />
+                  <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-400'}`} aria-hidden="true" />
                   {label}
                 </>
               )}
@@ -56,22 +66,32 @@ const Sidebar = ({ sidebar, setSidebar }) => {
         </div>
       </div>
 
-      <div className='w-full border-t border-gray-200 p-4 px-7 flex items-center 
-      justify-between'>
-        <div onClick={openUserProfile} className='flex gap-2 items-center cursor-pointer'>
-              <img src={user.imageUrl} className='w-8 rounded-full' alt=""/>
-              <div>
-                <h1 className='text-sm font-medium'>{user.fullName}</h1>
-                <p className='text-xs text-gray-500'>
-                  <Protect plan='Premium' fallback='Free'>Premium</Protect>
-                   Plan
-
-                </p>
-              </div>
-            
-        </div>
-        <LogOut onClick={signOut} className='w-4.5 text-gray-400 hover:text-gray-700 transition cursor-pointer'/>
-
+      <div className="relative w-full border-t border-white/10 p-4 px-7 flex items-center justify-between">
+        <button
+          onClick={openUserProfile}
+          className="flex gap-2 items-center cursor-pointer text-left
+          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6C5CE7]/60 rounded-lg"
+        >
+          <img
+            src={user?.imageUrl}
+            alt=""
+            className="w-8 h-8 rounded-full object-cover border-2 border-[#0f0f1a]"
+          />
+          <div>
+            <h1 className="text-sm font-medium text-[#F1F0FA]">{user?.fullName}</h1>
+            <p className="text-xs text-slate-400">
+              <Protect plan="Premium" fallback="Free">Premium</Protect> Plan
+            </p>
+          </div>
+        </button>
+        <LogOut
+          onClick={signOut}
+          className="w-4.5 h-4.5 text-slate-400 hover:text-[#F1F0FA] transition-colors duration-200 cursor-pointer
+          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6C5CE7]/60 rounded"
+          role="button"
+          tabIndex={0}
+          aria-label="Sign out"
+        />
       </div>
     </div>
   );

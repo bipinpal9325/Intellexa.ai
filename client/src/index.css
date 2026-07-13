@@ -35,6 +35,24 @@
   letter-spacing: 0.14em;
 }
 
+/*
+  Global canvas background — prevents a white flash from showing through
+  during overscroll/elastic bounce or fast-scroll paint lag, since every
+  section paints its own #0a0a12 background independently and there was
+  previously nothing behind them at the html/body/#root level.
+*/
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background-color: #0a0a12;
+}
+
+#root {
+  min-height: 100%;
+  background-color: #0a0a12;
+}
+
 /* Respect reduced motion globally */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
