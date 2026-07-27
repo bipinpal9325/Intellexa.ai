@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Edit, Sparkles } from 'lucide-react'
 import axios from 'axios'
 import { useAuth } from '@clerk/clerk-react'
@@ -6,6 +6,8 @@ import toast from 'react-hot-toast'
 import Markdown from 'react-markdown'
 
 axios.defaults.baseURL = import.meta.env.VITE_BASE_URL
+
+const RATE_LIMIT_COOLDOWN_SECONDS = 60
 
 const WriteArticle = () => {
 
@@ -19,14 +21,29 @@ const WriteArticle = () => {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [content, setContent] = useState('')
+  const [cooldown, setCooldown] = useState(0) // seconds remaining before retry is allowed
 
   const { getToken } = useAuth()
+
+  // Tick the cooldown timer down once a second while it's active
+  useEffect(() => {
+    if (cooldown <= 0) return
+    const timer = setInterval(() => {
+      setCooldown((prev) => Math.max(prev - 1, 0))
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [cooldown])
 
   const onSubmitHandler = async (e) => {
     e.preventDefault();
 
     if (!input.trim()) {
       toast.error('Please enter a topic for your article.')
+      return;
+    }
+
+    if (cooldown > 0) {
+      toast.error(`AI service is rate-limited. Please wait ${cooldown}s before trying again.`)
       return;
     }
 
@@ -47,7 +64,15 @@ const WriteArticle = () => {
         toast.error(data.message)
       }
     } catch (error) {
-      toast.error(error?.response?.data?.message || error.message)
+      const status = error?.response?.status
+      const message = error?.response?.data?.message || error.message
+
+      if (status === 429) {
+        toast.error('AI service is rate-limited right now. Try again shortly.')
+        setCooldown(RATE_LIMIT_COOLDOWN_SECONDS)
+      } else {
+        toast.error(message)
+      }
     } finally {
       setLoading(false)
     }
@@ -97,7 +122,7 @@ const WriteArticle = () => {
         </div>
 
         <button
-          disabled={loading}
+          disabled={loading || cooldown > 0}
           className='w-full flex justify-center items-center gap-2 bg-[#6C5CE7] hover:bg-[#5B4BD6]
           text-white px-4 py-2.5 mt-6 text-sm font-medium rounded-xl cursor-pointer transition-colors
           disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6C5CE7]/60'
@@ -106,7 +131,12 @@ const WriteArticle = () => {
             ? <span className='w-4 h-4 my-1 rounded-full border-2 border-white/40 border-t-transparent animate-spin' />
             : <Edit className='w-5' />
           }
-          {loading ? 'Generating...' : 'Generate Article'}
+          {loading
+            ? 'Generating...'
+            : cooldown > 0
+              ? `Rate limited — retry in ${cooldown}s`
+              : 'Generate Article'
+          }
         </button>
       </form>
 

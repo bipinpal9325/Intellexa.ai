@@ -14,8 +14,11 @@ const auth = async (req, res, next) => {
     const hasPremiumPlan = await has({ plan: "premium" });
     const user = await clerkClient.users.getUser(userId);
 
-    if (!hasPremiumPlan && user.privateMetadata?.free_usage) {
-      req.free_usage = user.privateMetadata.free_usage;
+    const existingFreeUsage = user.privateMetadata?.free_usage;
+
+    if (!hasPremiumPlan && existingFreeUsage !== undefined) {
+      // Fixed: `!existingFreeUsage` was falsy when usage was 0, resetting it on every request
+      req.free_usage = existingFreeUsage;
     } else {
       await clerkClient.users.updateUserMetadata(userId, {
         privateMetadata: {
@@ -30,7 +33,10 @@ const auth = async (req, res, next) => {
 
     next();
   } catch (error) {
-    res.status(401).json({
+    console.error(error);
+    // Propagate the real status (e.g. 429 from Clerk rate limiting) instead of always 401
+    const status = error?.status || 401;
+    res.status(status).json({
       success: false,
       message: error.message,
     });

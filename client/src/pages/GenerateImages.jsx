@@ -1,5 +1,12 @@
 import { Image, Sparkles } from 'lucide-react'
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import axios from 'axios'
+import { useAuth } from '@clerk/clerk-react'
+import toast from 'react-hot-toast'
+
+axios.defaults.baseURL = import.meta.env.VITE_BASE_URL
+
+const RATE_LIMIT_COOLDOWN_SECONDS = 60
 
 const GenerateImages = () => {
 
@@ -9,9 +16,60 @@ const GenerateImages = () => {
   const [selectedStyle, setSelectedStyle] = useState('Realistic')
   const [input, setInput] = useState('')
   const [publish, setPublish] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [image, setImage] = useState('')
+  const [cooldown, setCooldown] = useState(0)
+
+  const { getToken } = useAuth()
+
+  useEffect(() => {
+    if (cooldown <= 0) return
+    const timer = setInterval(() => {
+      setCooldown((prev) => Math.max(prev - 1, 0))
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [cooldown])
 
   const onSubmitHandler = async (e) => {
     e.preventDefault();
+
+    if (!input.trim()) {
+      toast.error('Please describe the image you want to generate.')
+      return;
+    }
+
+    if (cooldown > 0) {
+      toast.error(`Image service is rate-limited. Please wait ${cooldown}s before trying again.`)
+      return;
+    }
+
+    try {
+      setLoading(true)
+
+      const { data } = await axios.post(
+        '/api/ai/generate-image',
+        { prompt: input, style: selectedStyle, publish },
+        { headers: { Authorization: `Bearer ${await getToken()}` } }
+      )
+
+      if (data.success) {
+        setImage(data.content)
+      } else {
+        toast.error(data.message)
+      }
+    } catch (error) {
+      const status = error?.response?.status
+      const message = error?.response?.data?.message || error.message
+
+      if (status === 429) {
+        toast.error('Image service is rate-limited right now. Try again shortly.')
+        setCooldown(RATE_LIMIT_COOLDOWN_SECONDS)
+      } else {
+        toast.error(message)
+      }
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -81,11 +139,22 @@ const GenerateImages = () => {
           <p className='text-sm text-slate-300'>Upload in Community</p>
         </div>
 
-        <button className='w-full flex justify-center items-center gap-2 bg-[#6C5CE7] hover:bg-[#5B4BD6]
-        text-white px-4 py-2.5 mt-6 text-sm font-medium rounded-xl cursor-pointer transition-colors
-        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6C5CE7]/60'>
-          <Image className='w-5' />
-          Generate Image
+        <button
+          disabled={loading || cooldown > 0}
+          className='w-full flex justify-center items-center gap-2 bg-[#6C5CE7] hover:bg-[#5B4BD6]
+          text-white px-4 py-2.5 mt-6 text-sm font-medium rounded-xl cursor-pointer transition-colors
+          disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6C5CE7]/60'
+        >
+          {loading
+            ? <span className='w-4 h-4 my-1 rounded-full border-2 border-white/40 border-t-transparent animate-spin' />
+            : <Image className='w-5' />
+          }
+          {loading
+            ? 'Generating...'
+            : cooldown > 0
+              ? `Rate limited — retry in ${cooldown}s`
+              : 'Generate Image'
+          }
         </button>
       </form>
 
@@ -97,12 +166,22 @@ const GenerateImages = () => {
           <h1 className='font-display text-xl font-medium text-white'>Generated Images</h1>
         </div>
 
-        <div className='flex-1 flex justify-center items-center'>
-          <div className='text-sm flex flex-col items-center gap-5 text-slate-500'>
-            <Image className='w-9 h-9' />
-            <p>Describe a scene and click "Generate Image" to get your image.</p>
+        {!image ? (
+          <div className='flex-1 flex justify-center items-center'>
+            <div className='text-sm flex flex-col items-center gap-5 text-slate-500'>
+              <Image className='w-9 h-9' />
+              <p>Describe a scene and click "Generate Image" to get your image.</p>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className='mt-3 flex-1 flex items-center justify-center'>
+            <img
+              src={image}
+              alt="Generated"
+              className='w-full max-h-[500px] object-contain rounded-lg border border-white/10'
+            />
+          </div>
+        )}
       </div>
     </div>
   )
