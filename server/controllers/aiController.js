@@ -3,6 +3,8 @@ import sql from "../configs/db.js";
 import { clerkClient } from "@clerk/express";
 import { uploadImageBuffer } from "../configs/cloudinary.js";
 import { removeBackgroundRemoveBg } from "../configs/removeBg.js";
+import { removeObjectGemini } from "../configs/geminiInpaint.js";
+import { removeObjectIOPaint } from "../configs/iopaint.js";
 
 const ai = new OpenAI({
     apiKey: process.env.GROQ_API_KEY,
@@ -24,10 +26,7 @@ export const generateArticle = async (req, res) => {
 
     const response = await ai.chat.completions.create({
       model: "openai/gpt-oss-120b",
-      messages: [{
-        role: "user",
-        content: prompt,
-      }],
+      messages: [{ role: "user", content: prompt }],
       temperature: 0.7,
       max_tokens: length,
       reasoning_effort: "low",
@@ -35,10 +34,6 @@ export const generateArticle = async (req, res) => {
 
     const content = response.choices[0].message.content;
 
-    // Persisting the creation and bumping usage are secondary to actually
-    // returning the generated article. Wrap them separately so a DB/Clerk
-    // hiccup (e.g. stale DATABASE_URL credentials) doesn't turn a
-    // successful generation into a failed request.
     try {
       await sql`INSERT INTO creations (user_id, prompt, content, type)
         VALUES (${userId}, ${prompt}, ${content}, 'article')`;
@@ -49,23 +44,17 @@ export const generateArticle = async (req, res) => {
     if (plan !== 'premium') {
       try {
         await clerkClient.users.updateUserMetadata(userId, {
-          privateMetadata: {
-            free_usage: free_usage + 1
-          }
+          privateMetadata: { free_usage: free_usage + 1 }
         });
       } catch (usageError) {
         console.error("Failed to update free_usage metadata:", usageError.message);
       }
     }
 
-    // Echo the prompt back so the client/Postman can confirm what was sent
     res.json({ success: true, prompt, content });
 
   } catch (error) {
     console.error(error);
-
-    // The openai SDK exposes the real HTTP status on error.status even when
-    // talking to Groq's OpenAI-compatible endpoint
     const upstreamStatus = error?.status || error?.response?.status;
 
     if (upstreamStatus === 429) {
@@ -106,10 +95,7 @@ export const generateBlogTitles = async (req, res) => {
 
     const response = await ai.chat.completions.create({
       model: "openai/gpt-oss-120b",
-      messages: [{
-        role: "user",
-        content: prompt,
-      }],
+      messages: [{ role: "user", content: prompt }],
       temperature: 0.7,
       max_tokens: 1024,
       reasoning_effort: "low",
@@ -125,8 +111,6 @@ export const generateBlogTitles = async (req, res) => {
       });
     }
 
-    // Same pattern as generateArticle: persistence/usage-tracking failures
-    // shouldn't block the already-generated titles from reaching the user.
     try {
       await sql`INSERT INTO creations (user_id, prompt, content, type)
         VALUES (${userId}, ${prompt}, ${content}, 'blog-title')`;
@@ -137,9 +121,7 @@ export const generateBlogTitles = async (req, res) => {
     if (plan !== 'premium') {
       try {
         await clerkClient.users.updateUserMetadata(userId, {
-          privateMetadata: {
-            free_usage: free_usage + 1
-          }
+          privateMetadata: { free_usage: free_usage + 1 }
         });
       } catch (usageError) {
         console.error("Failed to update free_usage metadata:", usageError.message);
@@ -150,7 +132,6 @@ export const generateBlogTitles = async (req, res) => {
 
   } catch (error) {
     console.error(error);
-
     const upstreamStatus = error?.status || error?.response?.status;
 
     if (upstreamStatus === 429) {
@@ -187,11 +168,8 @@ export const generateImage = async (req, res) => {
       return res.json({ success: false, message: "Limit reached. Upgrade to continue." });
     }
 
-    // Fold the chosen style into the actual prompt sent to the image model
     const fullPrompt = `${prompt}, ${style || 'Realistic'} style, high quality, detailed`;
 
-    // Pollinations.ai — free, no API key. A random seed avoids getting a
-    // cached/identical image back for a repeated prompt.
     const seed = Math.floor(Math.random() * 1_000_000);
     const pollinationsUrl =
       `https://image.pollinations.ai/prompt/${encodeURIComponent(fullPrompt)}` +
@@ -208,8 +186,6 @@ export const generateImage = async (req, res) => {
     const arrayBuffer = await imageResponse.arrayBuffer();
     const imageBuffer = Buffer.from(arrayBuffer);
 
-    // Upload to Cloudinary for a permanent, shareable URL — Pollinations'
-    // own URLs aren't guaranteed to be stable/cacheable long-term.
     const uploadResult = await uploadImageBuffer(imageBuffer);
     const content = uploadResult.secure_url;
 
@@ -225,9 +201,7 @@ export const generateImage = async (req, res) => {
     if (plan !== 'premium') {
       try {
         await clerkClient.users.updateUserMetadata(userId, {
-          privateMetadata: {
-            free_usage: free_usage + 1
-          }
+          privateMetadata: { free_usage: free_usage + 1 }
         });
       } catch (usageError) {
         console.error("Failed to update free_usage metadata:", usageError.message);
@@ -238,7 +212,6 @@ export const generateImage = async (req, res) => {
 
   } catch (error) {
     console.error(error);
-
     const upstreamStatus = error?.status || error?.response?.status;
 
     if (upstreamStatus === 429) {
@@ -267,13 +240,9 @@ export const removeBackground = async (req, res) => {
       return res.json({ success: false, message: "Limit reached. Upgrade to continue." });
     }
 
-    // req.file.buffer comes from multer's memory storage (see middlewares/multer.js)
     const processedBuffer = await removeBackgroundRemoveBg(req.file.buffer);
-
-    // Cloudinary hosts the result (a transparent PNG) at a permanent URL
     const uploadResult = await uploadImageBuffer(processedBuffer);
     const content = uploadResult.secure_url;
-
     const prompt = "Remove background from uploaded image";
 
     try {
@@ -286,9 +255,7 @@ export const removeBackground = async (req, res) => {
     if (plan !== 'premium') {
       try {
         await clerkClient.users.updateUserMetadata(userId, {
-          privateMetadata: {
-            free_usage: free_usage + 1
-          }
+          privateMetadata: { free_usage: free_usage + 1 }
         });
       } catch (usageError) {
         console.error("Failed to update free_usage metadata:", usageError.message);
@@ -299,7 +266,6 @@ export const removeBackground = async (req, res) => {
 
   } catch (error) {
     console.error(error);
-
     const upstreamStatus = error?.status || error?.response?.status;
 
     if (upstreamStatus === 429) {
@@ -330,11 +296,98 @@ export const removeBackground = async (req, res) => {
   }
 };
 
-// Saves a result that was already processed CLIENT-SIDE (e.g. by
-// @imgly/background-removal running in the browser) into the creations
-// table. Unlike removeBackground, this does NOT call any external AI API —
-// the heavy processing already happened on the user's device — so it does
-// NOT count against free_usage, since no paid/metered resource was consumed.
+// Handles BOTH modes for object removal:
+// - mode 'cloud' -> Gemini 2.5 Flash Image, conversational edit driven by
+//   the object description text field
+// - mode 'local' -> self-hosted IOPaint server, uses the painted mask
+//   directly (unlimited, free, does NOT count against free_usage)
+export const removeObject = async (req, res) => {
+  try {
+    const { userId, plan, free_usage } = req;
+    const mode = req.body.mode === 'local' ? 'local' : 'cloud';
+
+    const imageFile = req.files?.image?.[0];
+    const maskFile = req.files?.mask?.[0];
+
+    if (!imageFile) {
+      return res.json({ success: false, message: "An image is required" });
+    }
+
+    if (mode === 'local' && !maskFile) {
+      return res.json({ success: false, message: "Local mode requires a painted mask" });
+    }
+
+    if (mode === 'cloud' && plan !== 'premium' && free_usage >= 10) {
+      return res.json({ success: false, message: "Limit reached. Upgrade to continue." });
+    }
+
+    const processedBuffer = mode === 'local'
+      ? await removeObjectIOPaint(imageFile.buffer, maskFile.buffer)
+      : await removeObjectGemini(imageFile.buffer, imageFile.mimetype, req.body.object);
+
+    const uploadResult = await uploadImageBuffer(processedBuffer);
+    const content = uploadResult.secure_url;
+
+    const prompt = req.body.object
+      ? `Remove object: ${req.body.object}`
+      : `Remove painted object (${mode} mode)`;
+
+    try {
+      await sql`INSERT INTO creations (user_id, prompt, content, type)
+        VALUES (${userId}, ${prompt}, ${content}, 'object-removal')`;
+    } catch (dbError) {
+      console.error("Failed to save creation to DB:", dbError.message);
+    }
+
+    if (mode === 'cloud' && plan !== 'premium') {
+      try {
+        await clerkClient.users.updateUserMetadata(userId, {
+          privateMetadata: { free_usage: free_usage + 1 }
+        });
+      } catch (usageError) {
+        console.error("Failed to update free_usage metadata:", usageError.message);
+      }
+    }
+
+    res.json({ success: true, content, mode });
+
+  } catch (error) {
+    console.error(error);
+    const { mode } = req.body;
+    const upstreamStatus = error?.status || error?.response?.status;
+
+    if (upstreamStatus === 429) {
+      return res.status(429).json({
+        success: false,
+        message: "The service is rate-limited right now. Please wait a bit and try again.",
+      });
+    }
+
+    if (upstreamStatus === 503) {
+      const fallbackMessage = mode === 'local'
+        ? "Local IOPaint server isn't reachable. Make sure it's running."
+        : "Gemini's service is temporarily overloaded. Please try again in a moment.";
+
+      return res.status(503).json({
+        success: false,
+        message: error.message || fallbackMessage,
+      });
+    }
+
+    if (upstreamStatus === 502) {
+      return res.status(502).json({
+        success: false,
+        message: error.message || "The AI model couldn't process this request. Try a more specific description.",
+      });
+    }
+
+    res.status(upstreamStatus || 500).json({
+      success: false,
+      message: error.message || "Something went wrong while removing the object.",
+    });
+  }
+};
+
 export const saveLocalCreation = async (req, res) => {
   try {
     const { userId } = req;
@@ -352,8 +405,6 @@ export const saveLocalCreation = async (req, res) => {
         VALUES (${userId}, ${prompt}, ${content}, ${type})`;
     } catch (dbError) {
       console.error("Failed to save local creation to DB:", dbError.message);
-      // Still return success — the user's processed image and its Cloudinary
-      // URL are valid even if the history row failed to save.
     }
 
     res.json({ success: true, content });

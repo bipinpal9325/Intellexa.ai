@@ -17,6 +17,19 @@ app.get("/", (req, res) => res.send("Server is Live!"));
 // userId and returns a proper JSON error if missing.
 app.use("/api/ai", aiRouter);
 
+// Global error handler — MUST be registered after all routes/routers above.
+// Without this, any thrown/unhandled error in a route handler produces a
+// bare, contentless 500 with nothing printed to this terminal. This makes
+// the real error visible both here (for debugging) and in the response
+// (for the frontend's toast messages to actually be meaningful).
+app.use((err, req, res, next) => {
+  console.error("UNHANDLED ERROR:", err);
+  res.status(err.status || 500).json({
+    success: false,
+    message: err.message || "Internal server error",
+  });
+});
+
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {

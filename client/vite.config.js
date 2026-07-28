@@ -7,11 +7,13 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     headers: {
-      // Required for SharedArrayBuffer, which @imgly/background-removal
-      // uses for multi-threaded WASM performance. Without these, the
-      // library still works but falls back to a slower single-threaded path.
+      // 'credentialless' still enables SharedArrayBuffer for
+      // @imgly/background-removal's multi-threaded WASM path,
+      // but — unlike 'require-corp' — it doesn't block cross-origin
+      // images (e.g. Cloudinary) that lack a Cross-Origin-Resource-Policy
+      // header. It just strips credentials from those requests instead.
       'Cross-Origin-Opener-Policy': 'same-origin',
-      'Cross-Origin-Embedder-Policy': 'require-corp',
+      'Cross-Origin-Embedder-Policy': 'credentialless',
     },
   },
 })

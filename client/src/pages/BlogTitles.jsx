@@ -1,5 +1,13 @@
 import { Hash, Sparkles } from 'lucide-react'
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import axios from 'axios'
+import { useAuth } from '@clerk/clerk-react'
+import toast from 'react-hot-toast'
+import Markdown from 'react-markdown'
+
+axios.defaults.baseURL = import.meta.env.VITE_BASE_URL
+
+const RATE_LIMIT_COOLDOWN_SECONDS = 60
 
 const BlogTitles = () => {
   const blogCategories = ['General', 'Technology', 'Business', 'Health',
@@ -7,9 +15,60 @@ const BlogTitles = () => {
 
   const [selectedCategory, setSelectedCategory] = useState('General')
   const [input, setInput] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [content, setContent] = useState('')
+  const [cooldown, setCooldown] = useState(0)
+
+  const { getToken } = useAuth()
+
+  useEffect(() => {
+    if (cooldown <= 0) return
+    const timer = setInterval(() => {
+      setCooldown((prev) => Math.max(prev - 1, 0))
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [cooldown])
 
   const onSubmitHandler = async (e) => {
     e.preventDefault();
+
+    if (!input.trim()) {
+      toast.error('Please enter a keyword.')
+      return;
+    }
+
+    if (cooldown > 0) {
+      toast.error(`AI service is rate-limited. Please wait ${cooldown}s before trying again.`)
+      return;
+    }
+
+    try {
+      setLoading(true)
+
+      const { data } = await axios.post(
+        '/api/ai/generate-blog-titles',
+        { keyword: input, category: selectedCategory },
+        { headers: { Authorization: `Bearer ${await getToken()}` } }
+      )
+
+      if (data.success) {
+        setContent(data.content)
+      } else {
+        toast.error(data.message)
+      }
+    } catch (error) {
+      const status = error?.response?.status
+      const message = error?.response?.data?.message || error.message
+
+      if (status === 429) {
+        toast.error('AI service is rate-limited right now. Try again shortly.')
+        setCooldown(RATE_LIMIT_COOLDOWN_SECONDS)
+      } else {
+        toast.error(message)
+      }
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -56,11 +115,22 @@ const BlogTitles = () => {
           ))}
         </div>
 
-        <button className='w-full flex justify-center items-center gap-2 bg-[#6C5CE7] hover:bg-[#5B4BD6]
-        text-white px-4 py-2.5 mt-6 text-sm font-medium rounded-xl cursor-pointer transition-colors
-        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6C5CE7]/60'>
-          <Hash className='w-5' />
-          Generate Title
+        <button
+          disabled={loading || cooldown > 0}
+          className='w-full flex justify-center items-center gap-2 bg-[#6C5CE7] hover:bg-[#5B4BD6]
+          text-white px-4 py-2.5 mt-6 text-sm font-medium rounded-xl cursor-pointer transition-colors
+          disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6C5CE7]/60'
+        >
+          {loading
+            ? <span className='w-4 h-4 my-1 rounded-full border-2 border-white/40 border-t-transparent animate-spin' />
+            : <Hash className='w-5' />
+          }
+          {loading
+            ? 'Generating...'
+            : cooldown > 0
+              ? `Rate limited — retry in ${cooldown}s`
+              : 'Generate Title'
+          }
         </button>
       </form>
 
@@ -72,12 +142,20 @@ const BlogTitles = () => {
           <h1 className='font-display text-xl font-medium text-white'>Generated Titles</h1>
         </div>
 
-        <div className='flex-1 flex justify-center items-center'>
-          <div className='text-sm flex flex-col items-center gap-5 text-slate-500'>
-            <Hash className='w-9 h-9' />
-            <p>Enter a keyword and click "Generate Title" to get your titles.</p>
+        {!content ? (
+          <div className='flex-1 flex justify-center items-center'>
+            <div className='text-sm flex flex-col items-center gap-5 text-slate-500'>
+              <Hash className='w-9 h-9' />
+              <p>Enter a keyword and click "Generate Title" to get your titles.</p>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className='mt-3 h-full overflow-y-scroll text-sm text-slate-300'>
+            <div className='reset-tw'>
+              <Markdown>{content}</Markdown>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

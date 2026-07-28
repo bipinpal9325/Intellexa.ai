@@ -25,7 +25,6 @@ const Sidebar = ({ sidebar, setSidebar }) => {
       ${sidebar ? 'translate-x-0' : 'max-sm:-translate-x-full'}
       transition-transform duration-300 ease-in-out`}
     >
-      {/* Faint ambient glow, kept subtle since this is a dense/utility panel */}
       <div
         className="pointer-events-none absolute -top-16 -left-16 w-64 h-64 rounded-full opacity-[0.12] blur-[100px]"
         style={{ background: 'radial-gradient(circle, #6C5CE7 0%, transparent 70%)' }}
@@ -34,7 +33,7 @@ const Sidebar = ({ sidebar, setSidebar }) => {
 
       <div className="relative my-7 w-full">
         <img
-          src={user?.imageUrl}
+          src={user?.imageUrl || undefined}
           alt="User avatar"
           className="w-14 h-14 rounded-full mx-auto object-cover border-2 border-[#0f0f1a]"
         />
@@ -73,7 +72,7 @@ const Sidebar = ({ sidebar, setSidebar }) => {
           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6C5CE7]/60 rounded-lg"
         >
           <img
-            src={user?.imageUrl}
+            src={user?.imageUrl || undefined}
             alt=""
             className="w-8 h-8 rounded-full object-cover border-2 border-[#0f0f1a]"
           />
