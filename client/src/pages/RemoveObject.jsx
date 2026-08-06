@@ -171,9 +171,6 @@ const RemoveObject = () => {
       return;
     }
 
-    // Local mode needs a painted mask (IOPaint uses it directly).
-    // Cloud mode uses Gemini's conversational editing, so it needs a
-    // text description instead — the mask isn't strictly required there.
     if (mode === 'local' && !hasPainted) {
       toast.error('Please paint over the object you want to remove.')
       return;
@@ -243,7 +240,6 @@ const RemoveObject = () => {
         aria-hidden="true"
       />
 
-      {/* Left Col */}
       <form onSubmit={onSubmitHandler} className='relative w-full max-w-lg p-4 bg-white/[0.03] rounded-2xl
       border border-white/10 backdrop-blur-sm'>
         <div className='flex items-center gap-3'>
@@ -251,7 +247,6 @@ const RemoveObject = () => {
           <h1 className='font-display text-xl font-medium text-white'>Object Removal</h1>
         </div>
 
-        {/* Mode toggle */}
         <div className='mt-5 flex gap-2 p-1 bg-[#15151f] border border-white/10 rounded-xl'>
           <button
             type="button"
@@ -259,7 +254,7 @@ const RemoveObject = () => {
             className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-medium transition-colors
               ${mode === 'cloud' ? 'bg-[#6C5CE7] text-white' : 'text-slate-400 hover:text-slate-200'}`}
           >
-            <Cloud className='w-4 h-4' /> Cloud (Gemini, daily free quota)
+            <Cloud className='w-4 h-4' /> Cloud (PhotoRoom, 500/min limit)
           </button>
           <button
             type="button"
@@ -289,7 +284,7 @@ const RemoveObject = () => {
             <p className='text-xs text-slate-500 mb-2'>
               {mode === 'local'
                 ? 'Paint over the object you want to remove — red highlight marks what will be erased.'
-                : 'Optional: paint over the object for reference — Gemini uses your description below to identify what to remove.'}
+                : 'Optional: paint over the object for reference — PhotoRoom uses your description below to identify what to remove.'}
             </p>
             <div className='relative w-full rounded-lg overflow-hidden border border-white/10 bg-[#15151f]'>
               <img
@@ -366,7 +361,6 @@ const RemoveObject = () => {
         </button>
       </form>
 
-      {/* Right Col */}
       <div className='relative w-full max-w-lg p-4 bg-white/[0.03] rounded-2xl flex flex-col border
       border-white/10 backdrop-blur-sm min-h-96'>
         <div className='flex items-center gap-3'>

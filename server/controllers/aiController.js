@@ -3,8 +3,9 @@ import sql from "../configs/db.js";
 import { clerkClient } from "@clerk/express";
 import { uploadImageBuffer } from "../configs/cloudinary.js";
 import { removeBackgroundRemoveBg } from "../configs/removeBg.js";
-import { removeObjectGemini } from "../configs/geminiInpaint.js";
+import { removeObjectClipdrop } from "../configs/clipdrop.js";
 import { removeObjectIOPaint } from "../configs/iopaint.js";
+import { PDFParse } from "pdf-parse"; // pdf-parse v2.x — named export, class-based API (no default export)
 
 const ai = new OpenAI({
     apiKey: process.env.GROQ_API_KEY,
@@ -296,11 +297,6 @@ export const removeBackground = async (req, res) => {
   }
 };
 
-// Handles BOTH modes for object removal:
-// - mode 'cloud' -> Gemini 2.5 Flash Image, conversational edit driven by
-//   the object description text field
-// - mode 'local' -> self-hosted IOPaint server, uses the painted mask
-//   directly (unlimited, free, does NOT count against free_usage)
 export const removeObject = async (req, res) => {
   try {
     const { userId, plan, free_usage } = req;
@@ -313,8 +309,8 @@ export const removeObject = async (req, res) => {
       return res.json({ success: false, message: "An image is required" });
     }
 
-    if (mode === 'local' && !maskFile) {
-      return res.json({ success: false, message: "Local mode requires a painted mask" });
+    if (!maskFile) {
+      return res.json({ success: false, message: "A painted mask is required" });
     }
 
     if (mode === 'cloud' && plan !== 'premium' && free_usage >= 10) {
@@ -323,7 +319,7 @@ export const removeObject = async (req, res) => {
 
     const processedBuffer = mode === 'local'
       ? await removeObjectIOPaint(imageFile.buffer, maskFile.buffer)
-      : await removeObjectGemini(imageFile.buffer, imageFile.mimetype, req.body.object);
+      : await removeObjectClipdrop(imageFile.buffer, maskFile.buffer);
 
     const uploadResult = await uploadImageBuffer(processedBuffer);
     const content = uploadResult.secure_url;
@@ -366,7 +362,7 @@ export const removeObject = async (req, res) => {
     if (upstreamStatus === 503) {
       const fallbackMessage = mode === 'local'
         ? "Local IOPaint server isn't reachable. Make sure it's running."
-        : "Gemini's service is temporarily overloaded. Please try again in a moment.";
+        : "The cloud service is temporarily overloaded. Please try again in a moment.";
 
       return res.status(503).json({
         success: false,
@@ -384,6 +380,107 @@ export const removeObject = async (req, res) => {
     res.status(upstreamStatus || 500).json({
       success: false,
       message: error.message || "Something went wrong while removing the object.",
+    });
+  }
+};
+
+export const reviewResume = async (req, res) => {
+  try {
+    const { userId, plan, free_usage } = req;
+
+    if (!req.file) {
+      return res.json({ success: false, message: "A resume PDF is required" });
+    }
+
+    if (req.file.mimetype !== "application/pdf") {
+      return res.json({ success: false, message: "Only PDF resumes are supported" });
+    }
+
+    if (plan !== 'premium' && free_usage >= 10) {
+      return res.json({ success: false, message: "Limit reached. Upgrade to continue." });
+    }
+
+    const parser = new PDFParse({ data: req.file.buffer });
+    let resumeText;
+    try {
+      const parsed = await parser.getText();
+      resumeText = parsed.text?.trim();
+    } finally {
+      // v2's parser holds worker/canvas resources internally — must be released explicitly,
+      // unlike the old v1 function which was stateless. Skipping this leaks memory under load.
+      await parser.destroy();
+    }
+
+    if (!resumeText || resumeText.length < 50) {
+      return res.json({
+        success: false,
+        message: "Couldn't extract readable text from this PDF. Make sure it's a text-based resume, not a scanned image."
+      });
+    }
+
+    const trimmedText = resumeText.slice(0, 8000);
+
+    const prompt = `You are an expert resume reviewer and ATS specialist. Analyze the following resume and provide:
+1. An estimated ATS compatibility score out of 100
+2. Top 3 strengths
+3. Top 3 areas for improvement
+4. Specific, actionable suggestions to improve the resume
+
+Format your response in clear markdown with headers. Be direct and constructive.
+
+Resume text:
+${trimmedText}`;
+
+    const response = await ai.chat.completions.create({
+      model: "openai/gpt-oss-120b",
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.5,
+      max_tokens: 1500,
+      reasoning_effort: "low",
+    });
+
+    const content = response.choices[0].message.content;
+
+    if (!content || content.trim().length === 0) {
+      return res.status(502).json({
+        success: false,
+        message: "The AI model returned an empty response. Please try again.",
+      });
+    }
+
+    try {
+      await sql`INSERT INTO creations (user_id, prompt, content, type)
+        VALUES (${userId}, 'Resume review', ${content}, 'resume-review')`;
+    } catch (dbError) {
+      console.error("Failed to save creation to DB:", dbError.message);
+    }
+
+    if (plan !== 'premium') {
+      try {
+        await clerkClient.users.updateUserMetadata(userId, {
+          privateMetadata: { free_usage: free_usage + 1 }
+        });
+      } catch (usageError) {
+        console.error("Failed to update free_usage metadata:", usageError.message);
+      }
+    }
+
+    res.json({ success: true, content });
+
+  } catch (error) {
+    console.error(error);
+    const upstreamStatus = error?.status || error?.response?.status;
+
+    if (upstreamStatus === 429) {
+      return res.status(429).json({
+        success: false,
+        message: "The AI service is rate-limited right now (Groq free-tier quota). Please wait a bit and try again.",
+      });
+    }
+
+    res.status(upstreamStatus || 500).json({
+      success: false,
+      message: error.message || "Something went wrong while reviewing the resume. Make sure the PDF isn't corrupted or password-protected.",
     });
   }
 };
