@@ -1,10 +1,11 @@
-import { FileText, Sparkles } from 'lucide-react';
+import { FileText, Sparkles, Copy, Check, Download } from 'lucide-react';
 import React, { useState, useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
 import axios from 'axios'
 import { useAuth } from '@clerk/clerk-react'
 import toast from 'react-hot-toast'
 import Markdown from 'react-markdown'
+import { downloadTextFile, copyToClipboard } from '../utils/textExport'
 
 axios.defaults.baseURL = import.meta.env.VITE_BASE_URL
 
@@ -13,6 +14,7 @@ const ReviewResume = () => {
   const [loading, setLoading] = useState(false)
   const [content, setContent] = useState('')
   const [viewingPastPrompt, setViewingPastPrompt] = useState('')
+  const [copied, setCopied] = useState(false)
 
   const location = useLocation()
   const { getToken } = useAuth()
@@ -64,6 +66,21 @@ const ReviewResume = () => {
     }
   }
 
+  const handleCopy = async () => {
+    const success = await copyToClipboard(content)
+    if (success) {
+      setCopied(true)
+      toast.success('Copied to clipboard.')
+      setTimeout(() => setCopied(false), 2000)
+    } else {
+      toast.error('Could not copy. Try selecting and copying manually.')
+    }
+  }
+
+  const handleDownload = () => {
+    downloadTextFile(`intellexa-resume-review-${Date.now()}.txt`, content)
+  }
+
   return (
     <div className='relative h-full overflow-y-scroll p-6 flex items-start flex-wrap gap-4 bg-[#0a0a12] text-slate-300'>
       <div
@@ -109,9 +126,35 @@ const ReviewResume = () => {
 
       <div className='relative w-full max-w-lg p-4 bg-white/[0.03] rounded-2xl flex flex-col border
       border-white/10 backdrop-blur-sm min-h-96 max-h-[600px]'>
-        <div className='flex items-center gap-3'>
-          <FileText className='w-5 h-5 text-[#9F91F0]' />
-          <h1 className='font-display text-xl font-medium text-white'>Analysis Results</h1>
+        <div className='flex items-center justify-between'>
+          <div className='flex items-center gap-3'>
+            <FileText className='w-5 h-5 text-[#9F91F0]' />
+            <h1 className='font-display text-xl font-medium text-white'>Analysis Results</h1>
+          </div>
+
+          {content && (
+            <div className='flex items-center gap-2'>
+              <button
+                type="button"
+                onClick={handleCopy}
+                className='flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-white/10
+                text-slate-300 hover:text-white hover:border-[#6C5CE7]/50 transition-colors
+                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6C5CE7]/60'
+              >
+                {copied ? <Check className='w-3.5 h-3.5 text-emerald-400' /> : <Copy className='w-3.5 h-3.5' />}
+                {copied ? 'Copied' : 'Copy'}
+              </button>
+              <button
+                type="button"
+                onClick={handleDownload}
+                className='flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-white/10
+                text-slate-300 hover:text-white hover:border-[#6C5CE7]/50 transition-colors
+                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6C5CE7]/60'
+              >
+                <Download className='w-3.5 h-3.5' /> Download
+              </button>
+            </div>
+          )}
         </div>
 
         {viewingPastPrompt && (
