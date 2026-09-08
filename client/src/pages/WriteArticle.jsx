@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useLocation } from 'react-router-dom'
 import { Edit, Sparkles } from 'lucide-react'
 import axios from 'axios'
 import { useAuth } from '@clerk/clerk-react'
@@ -21,11 +22,22 @@ const WriteArticle = () => {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [content, setContent] = useState('')
-  const [cooldown, setCooldown] = useState(0) // seconds remaining before retry is allowed
+  const [cooldown, setCooldown] = useState(0)
+  const [viewingPastPrompt, setViewingPastPrompt] = useState('')
 
+  const location = useLocation()
   const { getToken } = useAuth()
 
-  // Tick the cooldown timer down once a second while it's active
+  // If we arrived here from a Dashboard "Recent Creations" click, load that
+  // stored result directly instead of showing the empty placeholder.
+  useEffect(() => {
+    const pastCreation = location.state?.creation
+    if (pastCreation && pastCreation.type === 'article') {
+      setContent(pastCreation.content)
+      setViewingPastPrompt(pastCreation.prompt)
+    }
+  }, [location.state])
+
   useEffect(() => {
     if (cooldown <= 0) return
     const timer = setInterval(() => {
@@ -49,6 +61,7 @@ const WriteArticle = () => {
 
     try {
       setLoading(true)
+      setViewingPastPrompt('')
 
       const prompt = `Write an article about ${input} in ${selectedLength.text}`
 
@@ -80,7 +93,6 @@ const WriteArticle = () => {
 
   return (
     <div className='relative h-full overflow-y-scroll p-6 flex items-start flex-wrap gap-4 bg-[#0a0a12] text-slate-300'>
-      {/* Single subtle glow, kept faint since this is a dense/utility page */}
       <div
         className="pointer-events-none fixed top-0 right-0 w-[500px] h-[500px] rounded-full opacity-[0.12] blur-[130px]"
         style={{ background: 'radial-gradient(circle, #6C5CE7 0%, transparent 70%)' }}
@@ -146,6 +158,10 @@ const WriteArticle = () => {
           <Edit className='w-5 h-5 text-[#9F91F0]' />
           <h1 className='font-display text-xl font-medium text-white'>Generated Article</h1>
         </div>
+
+        {viewingPastPrompt && (
+          <p className='mt-2 text-xs text-slate-500 italic'>Viewing a previous creation</p>
+        )}
 
         {!content ? (
           <div className='flex-1 flex justify-center items-center'>

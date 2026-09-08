@@ -1,5 +1,6 @@
 import { Hash, Sparkles } from 'lucide-react'
 import React, { useState, useEffect } from 'react'
+import { useLocation } from 'react-router-dom'
 import axios from 'axios'
 import { useAuth } from '@clerk/clerk-react'
 import toast from 'react-hot-toast'
@@ -18,8 +19,18 @@ const BlogTitles = () => {
   const [loading, setLoading] = useState(false)
   const [content, setContent] = useState('')
   const [cooldown, setCooldown] = useState(0)
+  const [viewingPastPrompt, setViewingPastPrompt] = useState('')
 
+  const location = useLocation()
   const { getToken } = useAuth()
+
+  useEffect(() => {
+    const pastCreation = location.state?.creation
+    if (pastCreation && pastCreation.type === 'blog-title') {
+      setContent(pastCreation.content)
+      setViewingPastPrompt(pastCreation.prompt)
+    }
+  }, [location.state])
 
   useEffect(() => {
     if (cooldown <= 0) return
@@ -44,6 +55,7 @@ const BlogTitles = () => {
 
     try {
       setLoading(true)
+      setViewingPastPrompt('')
 
       const { data } = await axios.post(
         '/api/ai/generate-blog-titles',
@@ -79,7 +91,6 @@ const BlogTitles = () => {
         aria-hidden="true"
       />
 
-      {/* Left Col */}
       <form onSubmit={onSubmitHandler} className='relative w-full max-w-lg p-4 bg-white/[0.03] rounded-2xl
       border border-white/10 backdrop-blur-sm'>
         <div className='flex items-center gap-3'>
@@ -134,13 +145,16 @@ const BlogTitles = () => {
         </button>
       </form>
 
-      {/* Right Col */}
       <div className='relative w-full max-w-lg p-4 bg-white/[0.03] rounded-2xl flex flex-col border
       border-white/10 backdrop-blur-sm min-h-96'>
         <div className='flex items-center gap-3'>
           <Hash className='w-5 h-5 text-[#9F91F0]' />
           <h1 className='font-display text-xl font-medium text-white'>Generated Titles</h1>
         </div>
+
+        {viewingPastPrompt && (
+          <p className='mt-2 text-xs text-slate-500 italic'>Viewing a previous creation</p>
+        )}
 
         {!content ? (
           <div className='flex-1 flex justify-center items-center'>

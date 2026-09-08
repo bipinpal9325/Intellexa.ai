@@ -1,14 +1,33 @@
 import React, { useEffect, useState } from "react";
-import { dummyPublishedCreationData } from "../assets/assets";
 import { Heart } from "lucide-react";
-import { useUser } from "@clerk/clerk-react";
+import { useUser, useAuth } from "@clerk/clerk-react";
+import axios from "axios";
+import toast from "react-hot-toast";
+
+axios.defaults.baseURL = import.meta.env.VITE_BASE_URL
 
 const Community = () => {
   const [creations, setCreations] = useState([]);
+  const [loading, setLoading] = useState(true);
   const { user } = useUser();
+  const { getToken } = useAuth();
 
   const fetchCreations = async () => {
-    setCreations(dummyPublishedCreationData);
+    try {
+      setLoading(true);
+      const { data } = await axios.get('/api/ai/published-creations', {
+        headers: { Authorization: `Bearer ${await getToken()}` },
+      });
+      if (data.success) {
+        setCreations(data.creations);
+      } else {
+        toast.error(data.message);
+      }
+    } catch (error) {
+      toast.error(error?.response?.data?.message || error.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -17,21 +36,26 @@ const Community = () => {
     }
   }, [user]);
 
-  const toggleLike = (index) => {
+  const toggleLike = async (creation) => {
     if (!user) return;
 
-    setCreations((prev) =>
-      prev.map((creation, i) =>
-        i === index
-          ? {
-              ...creation,
-              likes: creation.likes.includes(user.id)
-                ? creation.likes.filter((id) => id !== user.id)
-                : [...creation.likes, user.id],
-            }
-          : creation
-      )
-    );
+    try {
+      const { data } = await axios.post(
+        '/api/ai/toggle-like',
+        { creationId: creation.id },
+        { headers: { Authorization: `Bearer ${await getToken()}` } }
+      );
+
+      if (data.success) {
+        setCreations((prev) =>
+          prev.map((c) => (c.id === creation.id ? { ...c, likes: data.likes } : c))
+        );
+      } else {
+        toast.error(data.message);
+      }
+    } catch (error) {
+      toast.error(error?.response?.data?.message || error.message);
+    }
   };
 
   return (
@@ -48,33 +72,32 @@ const Community = () => {
 
       <div className="relative bg-white/[0.03] border border-white/10 backdrop-blur-sm h-full w-full
       rounded-2xl p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 overflow-y-auto">
-        {creations.length > 0 ? (
-          creations.map((creation, index) => (
+        {loading ? (
+          <p className="text-slate-500 text-center col-span-full">Loading community creations...</p>
+        ) : creations.length > 0 ? (
+          creations.map((creation) => (
             <div
-              key={index}
+              key={creation.id}
               className="relative group bg-[#0f0f1a] border border-white/10 rounded-xl overflow-hidden
               hover:border-[#6C5CE7]/50 transition-colors duration-200"
             >
-              {/* Image */}
               <img
                 src={creation.content}
                 alt={creation.prompt}
                 className="w-full h-64 object-cover"
               />
 
-              {/* Prompt on hover */}
               <p className="absolute inset-x-0 bottom-0 bg-[#0a0a12]/85 text-slate-200 text-sm p-2
               opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                 {creation.prompt}
               </p>
 
-              {/* Like Section */}
               <div className="flex justify-between items-center px-4 py-3 bg-[#0f0f1a] border-t border-white/10">
-                <p className="text-sm text-slate-400">{creation.likes.length} Likes</p>
+                <p className="text-sm text-slate-400">{(creation.likes || []).length} Likes</p>
                 <Heart
-                  onClick={() => toggleLike(index)}
+                  onClick={() => toggleLike(creation)}
                   className={`w-5 h-5 cursor-pointer transition-transform duration-200 hover:scale-110 ${
-                    creation.likes.includes(user?.id)
+                    (creation.likes || []).includes(user?.id)
                       ? "fill-red-400 text-red-400"
                       : "text-slate-500"
                   }`}

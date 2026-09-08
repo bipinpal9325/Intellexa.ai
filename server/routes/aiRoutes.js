@@ -1,5 +1,5 @@
 import express from "express";
-import { generateArticle, generateBlogTitles, generateImage, removeBackground, removeObject, reviewResume, saveLocalCreation } from "../controllers/aiController.js";
+import { generateArticle, generateBlogTitles, generateImage, removeBackground, removeObject, reviewResume, getPublishedCreations, toggleLike, getUserCreations, saveLocalCreation } from "../controllers/aiController.js";
 import auth from "../middlewares/auth.js";
 import upload from "../middlewares/multer.js";
 
@@ -11,6 +11,9 @@ aiRouter.post('/generate-image', auth, generateImage);
 aiRouter.post('/remove-background', auth, upload.single('image'), removeBackground);
 aiRouter.post('/remove-object', auth, upload.fields([{ name: 'image', maxCount: 1 }, { name: 'mask', maxCount: 1 }]), removeObject);
 aiRouter.post('/review-resume', auth, upload.single('resume'), reviewResume);
+aiRouter.get('/published-creations', auth, getPublishedCreations);
+aiRouter.post('/toggle-like', auth, toggleLike);
+aiRouter.get('/user-creations', auth, getUserCreations);
 aiRouter.post('/save-local-creation', auth, upload.single('image'), saveLocalCreation);
 
 export default aiRouter;

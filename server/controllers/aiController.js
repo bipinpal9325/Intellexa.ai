@@ -12,6 +12,23 @@ const ai = new OpenAI({
     baseURL: "https://api.groq.com/openai/v1",
 });
 
+export const getUserCreations = async (req, res) => {
+  try {
+    const { userId } = req;
+
+    const [{ count }] = await sql`SELECT COUNT(*)::int AS count FROM creations WHERE user_id = ${userId}`;
+
+    const creations = await sql`SELECT id, prompt, content, type, created_at
+      FROM creations WHERE user_id = ${userId}
+      ORDER BY created_at DESC LIMIT 20`;
+
+    res.json({ success: true, creations, totalCount: count });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Failed to load your creations." });
+  }
+};
+
 export const generateArticle = async (req, res) => {
   try {
     const { userId, plan, free_usage } = req;
@@ -512,5 +529,45 @@ export const saveLocalCreation = async (req, res) => {
       success: false,
       message: error.message || "Something went wrong while saving the processed image.",
     });
+  }
+};
+
+export const getPublishedCreations = async (req, res) => {
+  try {
+    const creations = await sql`SELECT id, user_id, prompt, content, type, likes, created_at
+      FROM creations WHERE is_published = true ORDER BY created_at DESC`;
+    res.json({ success: true, creations });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Failed to load community creations." });
+  }
+};
+
+export const toggleLike = async (req, res) => {
+  try {
+    const { userId } = req;
+    const { creationId } = req.body;
+
+    if (!creationId) {
+      return res.json({ success: false, message: "creationId is required" });
+    }
+
+    const [creation] = await sql`SELECT likes FROM creations WHERE id = ${creationId}`;
+    if (!creation) {
+      return res.json({ success: false, message: "Creation not found" });
+    }
+
+    const currentLikes = creation.likes || [];
+    const hasLiked = currentLikes.includes(userId);
+    const updatedLikes = hasLiked
+      ? currentLikes.filter((id) => id !== userId)
+      : [...currentLikes, userId];
+
+    await sql`UPDATE creations SET likes = ${updatedLikes}::text[] WHERE id = ${creationId}`;
+
+    res.json({ success: true, likes: updatedLikes });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Failed to update like." });
   }
 };

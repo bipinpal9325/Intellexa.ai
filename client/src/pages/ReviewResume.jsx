@@ -1,5 +1,6 @@
 import { FileText, Sparkles } from 'lucide-react';
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { useLocation } from 'react-router-dom'
 import axios from 'axios'
 import { useAuth } from '@clerk/clerk-react'
 import toast from 'react-hot-toast'
@@ -11,8 +12,18 @@ const ReviewResume = () => {
   const [file, setFile] = useState(null)
   const [loading, setLoading] = useState(false)
   const [content, setContent] = useState('')
+  const [viewingPastPrompt, setViewingPastPrompt] = useState('')
 
+  const location = useLocation()
   const { getToken } = useAuth()
+
+  useEffect(() => {
+    const pastCreation = location.state?.creation
+    if (pastCreation && pastCreation.type === 'resume-review') {
+      setContent(pastCreation.content)
+      setViewingPastPrompt(pastCreation.prompt)
+    }
+  }, [location.state])
 
   const onSubmitHandler = async (e) => {
     e.preventDefault();
@@ -24,6 +35,7 @@ const ReviewResume = () => {
 
     try {
       setLoading(true)
+      setViewingPastPrompt('')
 
       const formData = new FormData()
       formData.append('resume', file)
@@ -101,6 +113,10 @@ const ReviewResume = () => {
           <FileText className='w-5 h-5 text-[#9F91F0]' />
           <h1 className='font-display text-xl font-medium text-white'>Analysis Results</h1>
         </div>
+
+        {viewingPastPrompt && (
+          <p className='mt-2 text-xs text-slate-500 italic'>Viewing a previous creation</p>
+        )}
 
         {!content ? (
           <div className='flex-1 flex justify-center items-center'>
