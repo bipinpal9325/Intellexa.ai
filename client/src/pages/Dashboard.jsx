@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@clerk/clerk-react';
-import { Protect } from '@clerk/clerk-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import Markdown from 'react-markdown';
@@ -27,8 +26,29 @@ const Dashboard = () => {
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [selectedCreation, setSelectedCreation] = useState(null);
+  const [activePlan, setActivePlan] = useState('Free');
+  const [planLoading, setPlanLoading] = useState(true);
 
-  const { getToken } = useAuth();
+  const { getToken, has, isLoaded } = useAuth();
+
+  // Reads the user's real subscription state directly from Clerk's
+  // billing check, rather than a hardcoded value or an implicit
+  // fallback-render pattern. `has` is only usable once Clerk itself has
+  // finished loading — checking isLoaded avoids a false "Free" flash
+  // before Clerk's auth state is actually ready.
+  useEffect(() => {
+    if (!isLoaded) return;
+
+    try {
+      const isPremium = has?.({ plan: 'Premium' });
+      setActivePlan(isPremium ? 'Premium' : 'Free');
+    } catch (error) {
+      console.error('Failed to check plan status:', error);
+      setActivePlan('Free');
+    } finally {
+      setPlanLoading(false);
+    }
+  }, [isLoaded, has]);
 
   const getDashboardData = async () => {
     try {
@@ -88,7 +108,7 @@ const Dashboard = () => {
           <div className="text-slate-400">
             <p className="text-sm">Active Plan</p>
             <h2 className="font-display text-xl text-white">
-              <Protect plan="Premium" fallback="Free">Premium</Protect>
+              {planLoading ? '...' : activePlan}
             </h2>
           </div>
 
@@ -100,8 +120,6 @@ const Dashboard = () => {
 
       </div>
 
-      {/* Detail panel — appears when a creation is selected, replaces
-          nothing else on the page, just adds this section above the list */}
       {selectedCreation && (
         <div className='relative mt-8 p-4 bg-white/[0.03] rounded-2xl border border-[#6C5CE7]/30 backdrop-blur-sm'>
           <div className='flex items-center justify-between mb-3'>

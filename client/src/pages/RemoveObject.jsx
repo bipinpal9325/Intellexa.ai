@@ -1,4 +1,4 @@
-import { Scissors, Sparkles, Eraser as EraserIcon, RotateCcw, Cloud, Laptop } from 'lucide-react'
+import { Scissors, Sparkles, Eraser as EraserIcon, RotateCcw, Cloud, Laptop, Download, X } from 'lucide-react'
 import React, { useState, useEffect, useRef } from 'react'
 import axios from 'axios'
 import { useAuth } from '@clerk/clerk-react'
@@ -7,6 +7,12 @@ import toast from 'react-hot-toast'
 axios.defaults.baseURL = import.meta.env.VITE_BASE_URL
 
 const RATE_LIMIT_COOLDOWN_SECONDS = 60
+
+const DOWNLOAD_FORMATS = [
+  { id: 'png', label: 'PNG', mime: 'image/png', supportsQuality: false, description: 'Lossless, larger file' },
+  { id: 'jpeg', label: 'JPG', mime: 'image/jpeg', supportsQuality: true, description: 'Smaller file, adjustable quality' },
+  { id: 'webp', label: 'WebP', mime: 'image/webp', supportsQuality: true, description: 'Modern format, best compression' },
+]
 
 const RemoveObject = () => {
   const [mode, setMode] = useState('cloud')
@@ -18,6 +24,11 @@ const RemoveObject = () => {
   const [loading, setLoading] = useState(false)
   const [resultImage, setResultImage] = useState('')
   const [cooldown, setCooldown] = useState(0)
+
+  const [showDownloadPanel, setShowDownloadPanel] = useState(false)
+  const [downloadFormat, setDownloadFormat] = useState('png')
+  const [downloadQuality, setDownloadQuality] = useState(90)
+  const [downloading, setDownloading] = useState(false)
 
   const canvasRef = useRef(null)
   const maskCanvasRef = useRef(null)
@@ -65,6 +76,7 @@ const RemoveObject = () => {
     setFile(selected)
     setResultImage('')
     setHasPainted(false)
+    setShowDownloadPanel(false)
     setImageUrl(URL.createObjectURL(selected))
   }
 
@@ -171,13 +183,8 @@ const RemoveObject = () => {
       return;
     }
 
-    if (mode === 'local' && !hasPainted) {
+    if (!hasPainted) {
       toast.error('Please paint over the object you want to remove.')
-      return;
-    }
-
-    if (mode === 'cloud' && !objectName.trim()) {
-      toast.error('Please describe the object to remove (e.g. "the red car").')
       return;
     }
 
@@ -188,6 +195,7 @@ const RemoveObject = () => {
 
     try {
       setLoading(true)
+      setShowDownloadPanel(false)
 
       const maskBlob = await canvasToBlob(maskCanvasRef.current)
 
@@ -232,6 +240,74 @@ const RemoveObject = () => {
     }
   }
 
+  // Re-encodes the hosted result via canvas so format/quality can be
+  // chosen client-side — the stored file is a single fixed PNG.
+  const handleDownload = async () => {
+    if (!resultImage) return
+
+    try {
+      setDownloading(true)
+
+      const response = await fetch(resultImage, { mode: 'cors' })
+      if (!response.ok) throw new Error('Failed to fetch the image for download.')
+      const blob = await response.blob()
+      const objectUrl = URL.createObjectURL(blob)
+
+      const img = new window.Image()
+      img.crossOrigin = 'anonymous'
+
+      const loaded = new Promise((resolve, reject) => {
+        img.onload = resolve
+        img.onerror = () => reject(new Error('Could not load the image for conversion.'))
+      })
+      img.src = objectUrl
+      await loaded
+
+      const canvas = document.createElement('canvas')
+      canvas.width = img.naturalWidth
+      canvas.height = img.naturalHeight
+      const ctx = canvas.getContext('2d')
+
+      if (downloadFormat === 'jpeg') {
+        ctx.fillStyle = '#FFFFFF'
+        ctx.fillRect(0, 0, canvas.width, canvas.height)
+      }
+      ctx.drawImage(img, 0, 0)
+
+      const formatConfig = DOWNLOAD_FORMATS.find((f) => f.id === downloadFormat)
+      const qualityFraction = downloadQuality / 100
+
+      canvas.toBlob(
+        (outputBlob) => {
+          if (!outputBlob) {
+            toast.error('Could not generate the file for download. Try a different format.')
+            return
+          }
+          const downloadUrl = URL.createObjectURL(outputBlob)
+          const link = document.createElement('a')
+          link.href = downloadUrl
+          link.download = `intellexa-ai-object-removed-${Date.now()}.${downloadFormat === 'jpeg' ? 'jpg' : downloadFormat}`
+          document.body.appendChild(link)
+          link.click()
+          document.body.removeChild(link)
+          URL.revokeObjectURL(downloadUrl)
+          setShowDownloadPanel(false)
+        },
+        formatConfig.mime,
+        formatConfig.supportsQuality ? qualityFraction : undefined
+      )
+
+      URL.revokeObjectURL(objectUrl)
+    } catch (error) {
+      console.error(error)
+      toast.error(error.message || 'Something went wrong while preparing the download.')
+    } finally {
+      setDownloading(false)
+    }
+  }
+
+  const activeFormat = DOWNLOAD_FORMATS.find((f) => f.id === downloadFormat)
+
   return (
     <div className='relative h-full overflow-y-scroll p-6 flex items-start flex-wrap gap-4 bg-[#0a0a12] text-slate-300'>
       <div
@@ -240,6 +316,7 @@ const RemoveObject = () => {
         aria-hidden="true"
       />
 
+      {/* Left Col */}
       <form onSubmit={onSubmitHandler} className='relative w-full max-w-lg p-4 bg-white/[0.03] rounded-2xl
       border border-white/10 backdrop-blur-sm'>
         <div className='flex items-center gap-3'>
@@ -254,7 +331,7 @@ const RemoveObject = () => {
             className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-medium transition-colors
               ${mode === 'cloud' ? 'bg-[#6C5CE7] text-white' : 'text-slate-400 hover:text-slate-200'}`}
           >
-            <Cloud className='w-4 h-4' /> Cloud (PhotoRoom, 500/min limit)
+            <Cloud className='w-4 h-4' /> Cloud (limited free credits)
           </button>
           <button
             type="button"
@@ -282,9 +359,7 @@ const RemoveObject = () => {
         {imageUrl && (
           <div className='mt-4'>
             <p className='text-xs text-slate-500 mb-2'>
-              {mode === 'local'
-                ? 'Paint over the object you want to remove — red highlight marks what will be erased.'
-                : 'Optional: paint over the object for reference — PhotoRoom uses your description below to identify what to remove.'}
+              Paint over the object you want to remove — red highlight marks what will be erased.
             </p>
             <div className='relative w-full rounded-lg overflow-hidden border border-white/10 bg-[#15151f]'>
               <img
@@ -328,9 +403,7 @@ const RemoveObject = () => {
           </div>
         )}
 
-        <p className='mt-6 text-sm font-medium text-slate-300'>
-          {mode === 'cloud' ? 'Describe the object to remove' : 'Object name (optional)'}
-        </p>
+        <p className='mt-6 text-sm font-medium text-slate-300'>Object name (optional)</p>
 
         <input
           onChange={(e) => setObjectName(e.target.value)}
@@ -339,7 +412,7 @@ const RemoveObject = () => {
           className='w-full p-2 px-3 mt-2 outline-none text-sm rounded-lg bg-[#15151f] border border-white/10
           text-[#F1F0FA] placeholder:text-slate-500 focus:border-[#6C5CE7] transition-colors
           focus-visible:ring-2 focus-visible:ring-[#6C5CE7]/60'
-          placeholder={mode === 'cloud' ? 'e.g., the red car in the background' : 'e.g., watch or spoon — used for your history label'}
+          placeholder='e.g., watch or spoon — used for your history label'
         />
 
         <button
@@ -361,11 +434,26 @@ const RemoveObject = () => {
         </button>
       </form>
 
+      {/* Right Col */}
       <div className='relative w-full max-w-lg p-4 bg-white/[0.03] rounded-2xl flex flex-col border
       border-white/10 backdrop-blur-sm min-h-96'>
-        <div className='flex items-center gap-3'>
-          <EraserIcon className='w-5 h-5 text-[#9F91F0]' />
-          <h1 className='font-display text-xl font-medium text-white'>Processed Image</h1>
+        <div className='flex items-center justify-between'>
+          <div className='flex items-center gap-3'>
+            <EraserIcon className='w-5 h-5 text-[#9F91F0]' />
+            <h1 className='font-display text-xl font-medium text-white'>Processed Image</h1>
+          </div>
+
+          {resultImage && (
+            <button
+              type="button"
+              onClick={() => setShowDownloadPanel((prev) => !prev)}
+              className='flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-white/10
+              text-slate-300 hover:text-white hover:border-[#6C5CE7]/50 transition-colors
+              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6C5CE7]/60'
+            >
+              <Download className='w-3.5 h-3.5' /> Download
+            </button>
+          )}
         </div>
 
         {!resultImage ? (
@@ -376,13 +464,81 @@ const RemoveObject = () => {
             </div>
           </div>
         ) : (
-          <div className='mt-3 flex-1 flex items-center justify-center'>
-            <img
-              src={resultImage}
-              alt="Object removed"
-              className='w-full max-h-[500px] object-contain rounded-lg border border-white/10'
-            />
-          </div>
+          <>
+            {showDownloadPanel && (
+              <div className='mt-4 p-4 bg-[#15151f] border border-white/10 rounded-xl'>
+                <div className='flex items-center justify-between mb-3'>
+                  <p className='text-sm font-medium text-slate-300'>Download options</p>
+                  <button
+                    type="button"
+                    onClick={() => setShowDownloadPanel(false)}
+                    className='text-slate-500 hover:text-white transition-colors'
+                    aria-label="Close download options"
+                  >
+                    <X className='w-4 h-4' />
+                  </button>
+                </div>
+
+                <p className='text-xs text-slate-500 mb-2'>File format</p>
+                <div className='flex gap-2 mb-4'>
+                  {DOWNLOAD_FORMATS.map((format) => (
+                    <button
+                      key={format.id}
+                      type="button"
+                      onClick={() => setDownloadFormat(format.id)}
+                      className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-colors
+                        ${downloadFormat === format.id
+                          ? 'bg-[#6C5CE7] text-white border-[#6C5CE7]'
+                          : 'text-slate-400 border-white/10 hover:border-white/20'}`}
+                    >
+                      {format.label}
+                    </button>
+                  ))}
+                </div>
+                <p className='text-xs text-slate-500 -mt-2 mb-4'>{activeFormat?.description}</p>
+
+                {activeFormat?.supportsQuality && (
+                  <div className='mb-4'>
+                    <div className='flex items-center justify-between mb-1'>
+                      <p className='text-xs text-slate-500'>Quality</p>
+                      <p className='text-xs text-slate-400'>{downloadQuality}%</p>
+                    </div>
+                    <input
+                      type="range"
+                      min="10"
+                      max="100"
+                      value={downloadQuality}
+                      onChange={(e) => setDownloadQuality(Number(e.target.value))}
+                      className='w-full accent-[#6C5CE7]'
+                    />
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleDownload}
+                  disabled={downloading}
+                  className='w-full flex justify-center items-center gap-2 bg-[#6C5CE7] hover:bg-[#5B4BD6]
+                  text-white px-4 py-2 text-sm font-medium rounded-lg cursor-pointer transition-colors
+                  disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6C5CE7]/60'
+                >
+                  {downloading
+                    ? <span className='w-4 h-4 rounded-full border-2 border-white/40 border-t-transparent animate-spin' />
+                    : <Download className='w-4 h-4' />
+                  }
+                  {downloading ? 'Preparing file...' : 'Download'}
+                </button>
+              </div>
+            )}
+
+            <div className='mt-3 flex-1 flex items-center justify-center'>
+              <img
+                src={resultImage}
+                alt="Object removed"
+                className='w-full max-h-[500px] object-contain rounded-lg border border-white/10'
+              />
+            </div>
+          </>
         )}
       </div>
     </div>

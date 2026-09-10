@@ -1,4 +1,4 @@
-import { Eraser, Sparkles, Cloud, Laptop } from 'lucide-react';
+import { Eraser, Sparkles, Cloud, Laptop, Download, X } from 'lucide-react';
 import React, { useState, useEffect } from 'react'
 import axios from 'axios'
 import { useAuth } from '@clerk/clerk-react'
@@ -9,9 +9,15 @@ axios.defaults.baseURL = import.meta.env.VITE_BASE_URL
 
 const RATE_LIMIT_COOLDOWN_SECONDS = 60
 
+const DOWNLOAD_FORMATS = [
+  { id: 'png', label: 'PNG', mime: 'image/png', supportsQuality: false, description: 'Keeps transparency — recommended' },
+  { id: 'webp', label: 'WebP', mime: 'image/webp', supportsQuality: true, description: 'Keeps transparency, smaller file' },
+  { id: 'jpeg', label: 'JPG', mime: 'image/jpeg', supportsQuality: true, description: 'No transparency — background becomes white' },
+]
+
 const RemoveBackground = () => {
 
-  const [mode, setMode] = useState('server') // 'server' (remove.bg) | 'local' (browser, unlimited)
+  const [mode, setMode] = useState('server')
   const [file, setFile] = useState(null)
   const [previewUrl, setPreviewUrl] = useState('')
   const [loading, setLoading] = useState(false)
@@ -19,6 +25,11 @@ const RemoveBackground = () => {
   const [cooldown, setCooldown] = useState(0)
   const [localModelReady, setLocalModelReady] = useState(false)
   const [localModelProgress, setLocalModelProgress] = useState(0)
+
+  const [showDownloadPanel, setShowDownloadPanel] = useState(false)
+  const [downloadFormat, setDownloadFormat] = useState('png')
+  const [downloadQuality, setDownloadQuality] = useState(90)
+  const [downloading, setDownloading] = useState(false)
 
   const { getToken } = useAuth()
 
@@ -59,6 +70,7 @@ const RemoveBackground = () => {
     const selected = e.target.files[0]
     setFile(selected)
     setResultImage('')
+    setShowDownloadPanel(false)
     if (selected) {
       setPreviewUrl(URL.createObjectURL(selected))
     } else {
@@ -107,6 +119,7 @@ const RemoveBackground = () => {
     }
 
     setLoading(true)
+    setShowDownloadPanel(false)
 
     if (mode === 'local') {
       try {
@@ -162,6 +175,74 @@ const RemoveBackground = () => {
     }
   }
 
+  // resultImage may be a Cloudinary URL (server mode) OR a local blob: URL
+  // (local mode) — fetch() handles both transparently, no branch needed.
+  const handleDownload = async () => {
+    if (!resultImage) return
+
+    try {
+      setDownloading(true)
+
+      const response = await fetch(resultImage)
+      if (!response.ok) throw new Error('Failed to fetch the image for download.')
+      const blob = await response.blob()
+      const objectUrl = URL.createObjectURL(blob)
+
+      const img = new window.Image()
+      img.crossOrigin = 'anonymous'
+
+      const loaded = new Promise((resolve, reject) => {
+        img.onload = resolve
+        img.onerror = () => reject(new Error('Could not load the image for conversion.'))
+      })
+      img.src = objectUrl
+      await loaded
+
+      const canvas = document.createElement('canvas')
+      canvas.width = img.naturalWidth
+      canvas.height = img.naturalHeight
+      const ctx = canvas.getContext('2d')
+
+      if (downloadFormat === 'jpeg') {
+        ctx.fillStyle = '#FFFFFF'
+        ctx.fillRect(0, 0, canvas.width, canvas.height)
+      }
+      ctx.drawImage(img, 0, 0)
+
+      const formatConfig = DOWNLOAD_FORMATS.find((f) => f.id === downloadFormat)
+      const qualityFraction = downloadQuality / 100
+
+      canvas.toBlob(
+        (outputBlob) => {
+          if (!outputBlob) {
+            toast.error('Could not generate the file for download. Try a different format.')
+            return
+          }
+          const downloadUrl = URL.createObjectURL(outputBlob)
+          const link = document.createElement('a')
+          link.href = downloadUrl
+          link.download = `intellexa-ai-background-removed-${Date.now()}.${downloadFormat === 'jpeg' ? 'jpg' : downloadFormat}`
+          document.body.appendChild(link)
+          link.click()
+          document.body.removeChild(link)
+          URL.revokeObjectURL(downloadUrl)
+          setShowDownloadPanel(false)
+        },
+        formatConfig.mime,
+        formatConfig.supportsQuality ? qualityFraction : undefined
+      )
+
+      URL.revokeObjectURL(objectUrl)
+    } catch (error) {
+      console.error(error)
+      toast.error(error.message || 'Something went wrong while preparing the download.')
+    } finally {
+      setDownloading(false)
+    }
+  }
+
+  const activeFormat = DOWNLOAD_FORMATS.find((f) => f.id === downloadFormat)
+
   return (
     <div className='relative h-full overflow-y-scroll p-6 flex items-start flex-wrap gap-4 bg-[#0a0a12] text-slate-300'>
       <div
@@ -170,6 +251,7 @@ const RemoveBackground = () => {
         aria-hidden="true"
       />
 
+      {/* Left Col */}
       <form onSubmit={onSubmitHandler} className='relative w-full max-w-lg p-4 bg-white/[0.03] rounded-2xl
       border border-white/10 backdrop-blur-sm'>
         <div className='flex items-center gap-3'>
@@ -252,11 +334,26 @@ const RemoveBackground = () => {
         </button>
       </form>
 
+      {/* Right Col */}
       <div className='relative w-full max-w-lg p-4 bg-white/[0.03] rounded-2xl flex flex-col border
       border-white/10 backdrop-blur-sm min-h-96'>
-        <div className='flex items-center gap-3'>
-          <Eraser className='w-5 h-5 text-[#9F91F0]' />
-          <h1 className='font-display text-xl font-medium text-white'>Processed Image</h1>
+        <div className='flex items-center justify-between'>
+          <div className='flex items-center gap-3'>
+            <Eraser className='w-5 h-5 text-[#9F91F0]' />
+            <h1 className='font-display text-xl font-medium text-white'>Processed Image</h1>
+          </div>
+
+          {resultImage && (
+            <button
+              type="button"
+              onClick={() => setShowDownloadPanel((prev) => !prev)}
+              className='flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-white/10
+              text-slate-300 hover:text-white hover:border-[#6C5CE7]/50 transition-colors
+              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6C5CE7]/60'
+            >
+              <Download className='w-3.5 h-3.5' /> Download
+            </button>
+          )}
         </div>
 
         {!resultImage ? (
@@ -267,24 +364,92 @@ const RemoveBackground = () => {
             </div>
           </div>
         ) : (
-          <div className='mt-3 flex-1 flex items-center justify-center'>
-            <div
-              className='w-full max-h-[500px] rounded-lg border border-white/10 p-2'
-              style={{
-                backgroundImage:
-                  'linear-gradient(45deg, #2a2a35 25%, transparent 25%), linear-gradient(-45deg, #2a2a35 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #2a2a35 75%), linear-gradient(-45deg, transparent 75%, #2a2a35 75%)',
-                backgroundSize: '20px 20px',
-                backgroundPosition: '0 0, 0 10px, 10px -10px, -10px 0px',
-                backgroundColor: '#1a1a24',
-              }}
-            >
-              <img
-                src={resultImage}
-                alt="Background removed"
-                className='w-full max-h-[480px] object-contain'
-              />
+          <>
+            {showDownloadPanel && (
+              <div className='mt-4 p-4 bg-[#15151f] border border-white/10 rounded-xl'>
+                <div className='flex items-center justify-between mb-3'>
+                  <p className='text-sm font-medium text-slate-300'>Download options</p>
+                  <button
+                    type="button"
+                    onClick={() => setShowDownloadPanel(false)}
+                    className='text-slate-500 hover:text-white transition-colors'
+                    aria-label="Close download options"
+                  >
+                    <X className='w-4 h-4' />
+                  </button>
+                </div>
+
+                <p className='text-xs text-slate-500 mb-2'>File format</p>
+                <div className='flex gap-2 mb-4'>
+                  {DOWNLOAD_FORMATS.map((format) => (
+                    <button
+                      key={format.id}
+                      type="button"
+                      onClick={() => setDownloadFormat(format.id)}
+                      className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-colors
+                        ${downloadFormat === format.id
+                          ? 'bg-[#6C5CE7] text-white border-[#6C5CE7]'
+                          : 'text-slate-400 border-white/10 hover:border-white/20'}`}
+                    >
+                      {format.label}
+                    </button>
+                  ))}
+                </div>
+                <p className='text-xs text-slate-500 -mt-2 mb-4'>{activeFormat?.description}</p>
+
+                {activeFormat?.supportsQuality && (
+                  <div className='mb-4'>
+                    <div className='flex items-center justify-between mb-1'>
+                      <p className='text-xs text-slate-500'>Quality</p>
+                      <p className='text-xs text-slate-400'>{downloadQuality}%</p>
+                    </div>
+                    <input
+                      type="range"
+                      min="10"
+                      max="100"
+                      value={downloadQuality}
+                      onChange={(e) => setDownloadQuality(Number(e.target.value))}
+                      className='w-full accent-[#6C5CE7]'
+                    />
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleDownload}
+                  disabled={downloading}
+                  className='w-full flex justify-center items-center gap-2 bg-[#6C5CE7] hover:bg-[#5B4BD6]
+                  text-white px-4 py-2 text-sm font-medium rounded-lg cursor-pointer transition-colors
+                  disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6C5CE7]/60'
+                >
+                  {downloading
+                    ? <span className='w-4 h-4 rounded-full border-2 border-white/40 border-t-transparent animate-spin' />
+                    : <Download className='w-4 h-4' />
+                  }
+                  {downloading ? 'Preparing file...' : 'Download'}
+                </button>
+              </div>
+            )}
+
+            <div className='mt-3 flex-1 flex items-center justify-center'>
+              <div
+                className='w-full max-h-[500px] rounded-lg border border-white/10 p-2'
+                style={{
+                  backgroundImage:
+                    'linear-gradient(45deg, #2a2a35 25%, transparent 25%), linear-gradient(-45deg, #2a2a35 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #2a2a35 75%), linear-gradient(-45deg, transparent 75%, #2a2a35 75%)',
+                  backgroundSize: '20px 20px',
+                  backgroundPosition: '0 0, 0 10px, 10px -10px, -10px 0px',
+                  backgroundColor: '#1a1a24',
+                }}
+              >
+                <img
+                  src={resultImage}
+                  alt="Background removed"
+                  className='w-full max-h-[480px] object-contain'
+                />
+              </div>
             </div>
-          </div>
+          </>
         )}
       </div>
     </div>
